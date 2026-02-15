@@ -13,7 +13,17 @@ export async function GET(
         return NextResponse.json({ error: 'Movie not found' }, { status: 404 });
     }
 
-    const similar = await getSimilarMovies(movieId);
+    // Get similar movie IDs from Python Backend
+    // Using fetchSimilarMovies which uses localhost direct URL for server-side
+    // We need to import it first
+    const { fetchSimilarMovies } = await import('@/lib/api');
+    const similarIds = await fetchSimilarMovies(movieId);
 
-    return NextResponse.json({ ...movie, similar });
+    // Hydrate similar movies
+    const similar = await Promise.all(
+        similarIds.map(async (id) => await getMovieById(id))
+    );
+    const validSimilar = similar.filter(m => m !== undefined);
+
+    return NextResponse.json({ ...movie, similar: validSimilar });
 }

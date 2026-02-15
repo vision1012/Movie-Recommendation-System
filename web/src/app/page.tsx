@@ -1,4 +1,5 @@
-import { getTrendingMovies, getMovies } from "@/lib/movielens";
+import { getTrendingMovies, getMovies, getMovieById } from "@/lib/movielens";
+import { fetchRecommendationsDirect } from "@/lib/api";
 import { HeroCarousel } from "@/components/hero-carousel";
 import { MovieRow } from "@/components/movie-row";
 
@@ -6,31 +7,36 @@ export default async function Home() {
   // Parallel data fetching for performance
   const [
     trending,
-    topRated,
+    topPickIds,
     actionMovies,
     comedyMovies,
     familyMovies,
     scifiMovies
   ] = await Promise.all([
     getTrendingMovies(5), // 5 for hero carousel
-    getMovies(1, 15), // "Top Rated" (default sort in getMovies is effectively ID based for now, but we can assume it's general list)
+    fetchRecommendationsDirect(1, 15), // "Top Picks" from Python Backend
     getMovies(1, 15, undefined, 'Action'),
     getMovies(1, 15, undefined, 'Comedy'),
-    getMovies(1, 15, undefined, 'Children'), // MovieLens uses 'Children' usually
+    getMovies(1, 15, undefined, 'Children'),
     getMovies(1, 15, undefined, 'Sci-Fi')
   ]);
 
+  // Hydrate Top Picks
+  const topPickedMovies = (await Promise.all(
+    topPickIds.map(async (id) => await getMovieById(id))
+  )).filter(m => m !== undefined);
+
   return (
-    <div className="min-h-screen pb-20 overflow-x-hidden">
+    <div className="min-h-screen pb-20 overflow-x-hidden bg-midnight-950">
       <HeroCarousel movies={trending} />
 
-      <div className="-mt-32 relative z-20 pl-4 md:pl-8 space-y-4">
+      <div className="-mt-32 relative z-20 pl-4 md:pl-12 space-y-8">
         <MovieRow title="Trending Now" movies={trending} />
-        <MovieRow title="Top Picks For You" movies={topRated.data} />
-        <MovieRow title="High Octane Action" movies={actionMovies.data} />
-        <MovieRow title="Laugh Out Loud" movies={comedyMovies.data} />
-        <MovieRow title="Family Favorites" movies={familyMovies.data} />
-        <MovieRow title="Sci-Fi Spectacles" movies={scifiMovies.data} />
+        <MovieRow title="Top Picks For You" movies={topPickedMovies} />
+        <MovieRow title="Action Thrillers" movies={actionMovies.data} />
+        <MovieRow title="Comedies" movies={comedyMovies.data} />
+        <MovieRow title="Family & Children" movies={familyMovies.data} />
+        <MovieRow title="Sci-Fi Worlds" movies={scifiMovies.data} />
       </div>
     </div>
   );
