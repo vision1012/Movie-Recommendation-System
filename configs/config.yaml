@@ -1,0 +1,72 @@
+# Movie Recommendation System - Configuration
+# All paths relative to project root unless absolute
+
+project:
+  name: movie-recommendation-system
+  seed: 42
+  log_level: INFO
+
+paths:
+  raw_data: MovieLens Data  # or data/raw for synthetic
+  processed_data: data/processed
+  models_dir: models
+  reports_dir: reports
+
+data:
+  source: movielens  # movielens | synthetic
+  # MovieLens: download from https://grouplens.org/datasets/movielens/
+  # Expected files: ratings.csv, movies.csv, tags.csv (optional)
+  movielens:
+    ratings_file: ratings.csv
+    movies_file: movies.csv
+    tags_file: tags.csv
+  synthetic:
+    n_users: 5000
+    n_movies: 2000
+    n_interactions: 100000
+    genres: ["Action", "Comedy", "Drama", "Horror", "Sci-Fi", "Romance", "Thriller"]
+
+# For large datasets (e.g. MovieLens 25M), subsample to keep training feasible
+data_subsample:
+  enabled: true
+  max_interactions: 500000
+  seed: 42
+
+split:
+  strategy: time  # time | random
+  train_ratio: 0.70
+  val_ratio: 0.15
+  test_ratio: 0.15
+  # For time split: sort by timestamp, then split chronologically
+
+recency:
+  enabled: true
+  decay_half_life_days: 90  # weight halves every 90 days
+
+models:
+  popularity:
+    min_interactions: 5  # min interactions to be "popular"
+  item_item:
+    n_similar: 50
+    min_similarity: 0.0
+  implicit_als:
+    factors: 64
+    regularization: 0.01
+    iterations: 15
+  hybrid:
+    cf_weight: 0.7
+    content_weight: 0.3
+
+inference:
+  model_name: hybrid  # hybrid | implicit_als | item_item | popularity | genre
+  default_k: 10
+  max_k: 100
+  exclude_watched: true
+  diversity_factor: 0.3  # MMR-like diversification
+  cache_ttl_seconds: 3600
+  cache_max_size: 10000
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  workers: 1

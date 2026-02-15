@@ -1,0 +1,29 @@
+# Data
+data/raw/
+data/processed/
+MovieLens Data/
+*.parquet
+*.csv
+
+# Models & artifacts
+models/
+reports/
+*.pkl
+*.joblib
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
