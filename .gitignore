@@ -5,8 +5,8 @@ MovieLens Data/
 *.parquet
 *.csv
 
-# Models & artifacts
-models/
+# Models & artifacts (trained binaries, not source)
+/models/
 reports/
 *.pkl
 *.joblib
