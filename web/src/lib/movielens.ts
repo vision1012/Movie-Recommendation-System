@@ -43,80 +43,86 @@ interface RawLink {
 
 // In-memory cache
 let cachedMovies: Movie[] | null = null;
+let loadPromise: Promise<{ movies: Movie[] }> | null = null;
 
 async function loadData() {
     if (cachedMovies) return { movies: cachedMovies };
+    if (loadPromise) return loadPromise;
 
-    try {
-        const movieContent = fs.readFileSync(path.join(DATA_DIR, 'movie.csv'), 'utf8');
-        const linkContent = fs.readFileSync(path.join(DATA_DIR, 'link.csv'), 'utf8');
+    loadPromise = (async () => {
+        try {
+            const movieContent = fs.readFileSync(path.join(DATA_DIR, 'movie.csv'), 'utf8');
+            const linkContent = fs.readFileSync(path.join(DATA_DIR, 'link.csv'), 'utf8');
 
-        const moviesData = Papa.parse<RawMovie>(movieContent, { header: true, dynamicTyping: true, skipEmptyLines: true }).data;
-        const linksData = Papa.parse<RawLink>(linkContent, { header: true, dynamicTyping: true, skipEmptyLines: true }).data;
+            const moviesData = Papa.parse<RawMovie>(movieContent, { header: true, dynamicTyping: true, skipEmptyLines: true }).data;
+            const linksData = Papa.parse<RawLink>(linkContent, { header: true, dynamicTyping: true, skipEmptyLines: true }).data;
 
-        // Create a map of movie stats
-        const movieStats = new Map<number, { sum: number; count: number }>();
+            // Create a map of movie stats
+            const movieStats = new Map<number, { sum: number; count: number }>();
 
-        // Stream ratings.csv instead of reading all at once
-        await new Promise<void>((resolve, reject) => {
-            const fileStream = fs.createReadStream(path.join(DATA_DIR, 'rating.csv'));
-            let count = 0;
-            const limit = 500000; // Limit to 500k ratings for performance
+            // Stream ratings.csv instead of reading all at once
+            await new Promise<void>((resolve, reject) => {
+                const fileStream = fs.createReadStream(path.join(DATA_DIR, 'rating.csv'));
+                let count = 0;
+                const limit = 500000; // Limit to 500k ratings for performance
 
-            Papa.parse<RawRating>(fileStream, {
-                header: true,
-                dynamicTyping: true,
-                skipEmptyLines: true,
-                step: (results, parser) => {
-                    const r = results.data;
-                    const current = movieStats.get(r.movieId) || { sum: 0, count: 0 };
-                    movieStats.set(r.movieId, { sum: current.sum + r.rating, count: current.count + 1 });
+                Papa.parse<RawRating>(fileStream, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                    step: (results, parser) => {
+                        const r = results.data;
+                        const current = movieStats.get(r.movieId) || { sum: 0, count: 0 };
+                        movieStats.set(r.movieId, { sum: current.sum + r.rating, count: current.count + 1 });
 
-                    count++;
-                    if (count >= limit) {
-                        parser.abort();
+                        count++;
+                        if (count >= limit) {
+                            parser.abort();
+                            resolve();
+                        }
+                    },
+                    complete: () => {
                         resolve();
+                    },
+                    error: (err: Error) => {
+                        reject(err);
                     }
-                },
-                complete: () => {
-                    resolve();
-                },
-                error: (err: Error) => {
-                    reject(err);
-                }
+                });
             });
-        });
 
-        const linksMap = new Map<number, RawLink>();
-        linksData.forEach(l => linksMap.set(l.movieId, l));
+            const linksMap = new Map<number, RawLink>();
+            linksData.forEach(l => linksMap.set(l.movieId, l));
 
-        cachedMovies = moviesData.map((m) => {
-            const stats = movieStats.get(m.movieId) || { sum: 0, count: 0 };
-            const rating = stats.count > 0 ? stats.sum / stats.count : 0;
+            cachedMovies = moviesData.map((m) => {
+                const stats = movieStats.get(m.movieId) || { sum: 0, count: 0 };
+                const rating = stats.count > 0 ? stats.sum / stats.count : 0;
 
-            // Extract year from title "Toy Story (1995)"
-            const yearMatch = m.title.match(/\((\d{4})\)$/);
-            const year = yearMatch ? parseInt(yearMatch[1]) : undefined;
-            const title = m.title.replace(/\s\(\d{4}\)$/, '');
+                // Extract year from title "Toy Story (1995)"
+                const yearMatch = m.title.match(/\((\d{4})\)$/);
+                const year = yearMatch ? parseInt(yearMatch[1]) : undefined;
+                const title = m.title.replace(/\s\(\d{4}\)$/, '');
 
-            const link = linksMap.get(m.movieId);
+                const link = linksMap.get(m.movieId);
 
-            return {
-                movieId: m.movieId,
-                title,
-                genres: m.genres.split('|'),
-                year,
-                rating,
-                voteCount: stats.count,
-                posterUrl: link?.tmdbId ? `https://image.tmdb.org/t/p/w500/${link.tmdbId}.jpg` : undefined // This won't work without fetch, but good for placeholder structure
-            };
-        });
+                return {
+                    movieId: m.movieId,
+                    title,
+                    genres: m.genres.split('|'),
+                    year,
+                    rating,
+                    voteCount: stats.count,
+                    posterUrl: link?.tmdbId ? `https://image.tmdb.org/t/p/w500/${link.tmdbId}.jpg` : undefined // This won't work without fetch, but good for placeholder structure
+                };
+            });
 
-        return { movies: cachedMovies };
-    } catch (error) {
-        console.error("Failed to load MovieLens data:", error);
-        return { movies: [] };
-    }
+            return { movies: cachedMovies };
+        } catch (error) {
+            console.error("Failed to load MovieLens data:", error);
+            return { movies: [] };
+        }
+    })();
+
+    return loadPromise;
 }
 
 export async function getMovies(page = 1, limit = 20, search?: string, genre?: string) {
